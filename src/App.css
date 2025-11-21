@@ -36,3 +36,437 @@
     transform: rotate(360deg);
   }
 }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.login-container {
+  max-width: 400px;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.login-container h2 {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.login-container input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.login-container button {
+  width: 100%;
+  padding: 0.7rem;
+  margin-top: 0.5rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-container button:hover {
+  background-color: #2980b9;
+}
+
+.message {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.level-card {
+  display: block;
+  padding: 1rem;
+  margin: 0.5rem 0;
+  background-color: #3498db;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.level-card:hover {
+  background-color: #2980b9;
+}
+
+/* App.css atau index.css */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #9c27b0, #2196f3);
+  color: #333;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.game {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.game-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.game-header h1 {
+  color: #2c3e50;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.game-description {
+  color: #666;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.game-meta {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.game-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.game-grid-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background: #f0f4f8;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.crossword-grid-container {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.crossword-grid {
+  display: grid;
+  gap: 0;
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  padding: 1px;
+  background-color: #3498db;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.crossword-cell {
+  display: flex;
+  position: relative;
+  background-color: white;
+  border: 1px solid #ddd;
+  transition: all 0.2s ease;
+}
+
+.crossword-cell.block {
+  background-color: #000 !important;
+  border: none;
+  color: #fff;
+}
+
+.crossword-cell.blank:hover {
+  background-color: #f0f8ff;
+}
+
+.crossword-cell.correct {
+  background-color: #e6f7ee !important;
+  border-color: #52c41a;
+}
+
+.crossword-cell.incorrect {
+  background-color: #ffe6e6 !important;
+  border-color: #ff4d4d;
+}
+
+.crossword-input {
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  caret-color: #007bff;
+  color: #333;
+}
+
+.crossword-input:focus {
+  background-color: #e3f2fd;
+  border: 2px solid #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.clue-number {
+  font-size: 0.65rem;
+  color: #3498db;
+  font-weight: bold;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* --- Clues Panel --- */
+.clues-panel {
+  display: flex;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.clues-column {
+  flex: 1;
+  min-width: 200px;
+}
+
+.clues-heading {
+  color: #2c3e50;
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #3498db;
+  font-weight: 600;
+}
+
+.clues-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.clue-item {
+  display: flex;
+  margin-bottom: 0.7rem;
+  padding: 0.6rem;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #3498db;
+  transition: transform 0.2s ease;
+}
+
+.clue-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.clue-number {
+  font-weight: bold;
+  color: #3498db;
+  margin-right: 0.5rem;
+  min-width: 25px;
+  text-align: right;
+}
+
+.clue-text {
+  flex: 1;
+  color: #444;
+  font-size: 1rem;
+}
+
+.no-clues {
+  color: #999;
+  font-style: italic;
+  padding: 1rem;
+}
+
+/* --- Footer Buttons --- */
+.game-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+  margin-top: 2rem;
+  border-top: 1px solid #eee;
+}
+
+.btn {
+  padding: 0.8rem 1.8rem;
+  border: none;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-hint {
+  background-color: #f39c12;
+  color: white;
+}
+
+.btn-hint:hover:not(:disabled) {
+  background-color: #e67e22;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(243, 156, 18, 0.3);
+}
+
+.btn-hint:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-save {
+  background-color: #27ae60;
+  color: white;
+}
+
+.btn-save:hover {
+  background-color: #219b56;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(39, 174, 96, 0.3);
+}
+
+/* --- Loading & Error States --- */
+.game-loading,
+.game-error {
+  text-align: center;
+  padding: 4rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.game-error h2 {
+  color: #e74c3c;
+  margin-bottom: 1rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .game {
+    padding: 1rem;
+  }
+
+  .game-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .game-main {
+    grid-template-columns: 1fr;
+  }
+
+  .clues-panel {
+    flex-direction: column;
+    padding: 1rem;
+  }
+
+  .clues-column {
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* Di App.css */
+
+.crossword-cell.selected {
+  background-color: #e3f2fd !important;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.crossword-cell:hover:not(.block):not(.selected) {
+  background-color: #f0f8ff;
+}
+
+.crossword-cell.block {
+  background-color: #000 !important;
+  border: none;
+  color: #fff;
+  cursor: default;
+}
+
+.crossword-cell.blank:hover {
+  background-color: #f0f8ff;
+}
+
+.crossword-cell.correct {
+  background-color: #e6f7ee !important;
+  border-color: #52c41a;
+}
+
+.crossword-cell.incorrect {
+  background-color: #ffe6e6 !important;
+  border-color: #ff4d4d;
+}
+
+/* App.css - Tambahkan style untuk cell transparan */
+.crossword-cell.transparent {
+  background-color: transparent !important;
+  border: none !important;
+  pointer-events: none;
+}

@@ -1,4 +1,4 @@
-// Game.tsx
+// pages/Game.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from "react-router-dom";
 import { useCrossword } from '../hooks/useCrossword';
@@ -6,213 +6,310 @@ import CrosswordGrid from '../components/CrosswordGrid';
 import CluesPanel from '../components/CluesPanel';
 import { calculateScore } from '../utils/scoring';
 import { supabase } from '../lib/supabase';
+import { Clue } from '../types/crossword'; 
 
 const Game: React.FC = () => {
   const { levelId } = useParams<{ levelId: string }>();
   const numericLevelId = Number(levelId);
 
-  const { level, clues, cells, loading } = useCrossword(numericLevelId);
+  const { level, clues, cells, gridBounds, loading } = useCrossword(numericLevelId);
 
-  const [grid, setGrid] = useState<string[][]>([]);
-  const [solution, setSolution] = useState<string[][]>([]);
-  const [gridClueNumbers, setGridClueNumbers] = useState<(number | null)[][]>([]); // Untuk nomor clue di grid
+ // Ubah state type dari string[][] menjadi (string | null)[][]
+  const [grid, setGrid] = useState<(string | null)[][]>([]);
+  const [solution, setSolution] = useState<(string | null)[][]>([]);
+  const [gridClueNumbers, setGridClueNumbers] = useState<(number | null)[][]>([]);
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null); // Cell yang aktif
+  const [activeClues, setActiveClues] = useState<{ across: Clue | null; down: Clue | null }>({
+    across: null,
+    down: null
+  });
 
   const [hintsUsed, setHintsUsed] = useState(0);
   const maxHints = 3;
 
   const [correctness, setCorrectness] = useState<(boolean | undefined)[][]>([]);
 
+  // Timer sebagai stopwatch
+  const [timeElapsed, setTimeElapsed] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+
   // ------------------------------------------------------------
-  //  BANGUN GRID DARI CELL DATABASE
+  //  BANGUN GRID DINAMIS BERDASARKAN CELLS
   // ------------------------------------------------------------
   useEffect(() => {
     if (!level || !cells.length) return;
-
-    const rows = level.height;
-    const cols = level.width;
-    const newGrid: string[][] = Array(rows).fill(null).map(() => Array(cols).fill(''));
-    const newSolution: string[][] = Array(rows).fill(null).map(() => Array(cols).fill(''));
-    const newCorrectness: (boolean | undefined)[][] = Array(rows).fill(null).map(() => Array(cols).fill(undefined));
-    const newGridClueNumbers: (number | null)[][] = Array(rows).fill(null).map(() => Array(cols).fill(null));
-
-    // Buat peta cell berdasarkan posisi
-    const cellMap = new Map<string, any>();
+  
+    // Cari batas aktual dari cell yang ada
+    const rows = cells.map(c => c.row);
+    const cols = cells.map(c => c.col);
+    const minRow = Math.min(...rows);
+    const maxRow = Math.max(...rows);
+    const minCol = Math.min(...cols);
+    const maxCol = Math.max(...cols);
+  
+    const gridRows = maxRow - minRow + 1;
+    const gridCols = maxCol - minCol + 1;
+  
+    // Inisialisasi grid dengan NULL (bukan string kosong)
+    const newGrid: (string | null)[][] = Array(gridRows)
+      .fill(null)
+      .map(() => Array(gridCols).fill(null));
+    const newSolution: (string | null)[][] = Array(gridRows)
+      .fill(null)
+      .map(() => Array(gridCols).fill(null));
+    const newCorrectness: (boolean | undefined)[][] = Array(gridRows)
+      .fill(null)
+      .map(() => Array(gridCols).fill(undefined));
+    const newGridClueNumbers: (number | null)[][] = Array(gridRows)
+      .fill(null)
+      .map(() => Array(gridCols).fill(null));
+  
+    // Hanya isi cell yang ADA di database
     cells.forEach(cell => {
-      const key = `${cell.row},${cell.col}`;
-      cellMap.set(key, cell);
-    });
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const cell = cellMap.get(`${r},${c}`);
-        if (cell) {
-          if (cell.type === 'block') {
-            newGrid[r][c] = '#';
-            newSolution[r][c] = '#';
-          } else {
-            newGrid[r][c] = '';
-            newSolution[r][c] = cell.solution_letter || '';
-            // Simpan nomor clue jika ada
-            if (cell.clue_across_id || cell.clue_down_id) {
-                // Cari clue terkecil yang terkait dengan cell ini
-                const cellClues = clues.filter(clue => clue.id === cell.clue_across_id || clue.id === cell.clue_down_id);
-                if (cellClues.length > 0) {
-                    const minNumber = Math.min(...cellClues.map(clue => clue.number));
-                    newGridClueNumbers[r][c] = minNumber;
-                }
-            }
-          }
-        } else {
-          // Jika tidak ada data cell, asumsikan blank
-          newGrid[r][c] = '';
-          newSolution[r][c] = '';
+      const r = cell.row - minRow;
+      const c = cell.col - minCol;
+  
+      if (cell.type === 'block') {
+        newGrid[r][c] = '#';
+        newSolution[r][c] = '#';
+      } else {
+        newGrid[r][c] = ''; // Cell kosong untuk input
+        newSolution[r][c] = cell.solution_letter || '';
+        
+        // Ambil nomor clue terkecil
+        const relatedClues = clues.filter(
+          clue => clue.id === cell.clue_across_id || clue.id === cell.clue_down_id
+        );
+        if (relatedClues.length > 0) {
+          const minNumber = Math.min(...relatedClues.map(c => c.number));
+          newGridClueNumbers[r][c] = minNumber;
         }
       }
-    }
-
+    });
+  
     setGrid(newGrid);
     setSolution(newSolution);
     setCorrectness(newCorrectness);
     setGridClueNumbers(newGridClueNumbers);
-  }, [level, cells]);
+    setIsTimerRunning(true);
+  }, [level, cells, clues]);
+
+  // Stopwatch effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
+    if (isTimerRunning) {
+      interval = setInterval(() => {
+        setTimeElapsed(prev => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerRunning]);
 
   // ------------------------------------------------------------
   // INPUT PER HURUF
   // ------------------------------------------------------------
   const handleCellChange = (r: number, c: number, value: string) => {
-    if (solution[r][c] === '#') return; // Jangan proses jika block
-
+    if (grid[r][c] === null || grid[r][c] === '#') return;
+  
     const newGrid = grid.map(row => [...row]);
     newGrid[r][c] = value.toUpperCase();
     setGrid(newGrid);
-
+  
     const newCorrect = correctness.map(row => [...row]);
     const input = value.toUpperCase();
     const correct = solution[r][c];
-
+  
     if (!input) newCorrect[r][c] = undefined;
     else newCorrect[r][c] = input === correct;
-
+  
     setCorrectness(newCorrect);
   };
 
   // ------------------------------------------------------------
-  // HINT
+  // CELL CLICK — TAMPILKAN CLUE YANG TERKAIT
   // ------------------------------------------------------------
-  const useHint = () => {
-    if (hintsUsed >= maxHints) return;
+  // pages/Game.tsx
+const handleCellClick = (r: number, c: number) => {
+  // Cek null dulu
+  if (grid[r][c] === null || grid[r][c] === '#') return;
+  
+  const realRow = r + gridBounds.minRow;
+  const realCol = c + gridBounds.minCol;
 
-    for (let r = 0; r < grid.length; r++) {
-      for (let c = 0; c < grid[0].length; c++) {
-        if (grid[r][c] === "" && solution[r][c] !== "#") {
-          const newGrid = grid.map(row => [...row]);
-          newGrid[r][c] = solution[r][c];
-          setGrid(newGrid);
+  const cell = cells.find(cell => cell.row === realRow && cell.col === realCol);
+  if (!cell) return;
 
-          const newCorrect = correctness.map(row => [...row]);
-          newCorrect[r][c] = true;
-          setCorrectness(newCorrect);
+  const acrossClue = clues.find(clue => clue.id === cell.clue_across_id);
+  const downClue = clues.find(clue => clue.id === cell.clue_down_id);
 
-          setHintsUsed(hintsUsed + 1);
-          return;
-        }
+  setActiveCell({ row: r, col: c });
+  setActiveClues({
+    across: acrossClue || null,
+    down: downClue || null
+  });
+};
+
+  // ------------------------------------------------------------
+  // HINT — ISI HURUF DI CELL KOSONG PERTAMA
+  // ------------------------------------------------------------
+  // pages/Game.tsx
+const useHint = () => {
+  if (hintsUsed >= maxHints) return;
+
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[0].length; c++) {
+      // Tambahkan pengecekan null
+      if (grid[r][c] === "" && solution[r][c] !== "#" && solution[r][c] !== null) {
+        const newGrid = grid.map(row => [...row]);
+        newGrid[r][c] = solution[r][c];
+        setGrid(newGrid);
+
+        const newCorrect = correctness.map(row => [...row]);
+        newCorrect[r][c] = true;
+        setCorrectness(newCorrect);
+
+        setHintsUsed(hintsUsed + 1);
+        return;
       }
     }
-  };
+  }
+};
 
-    // ------------------------------------------------------------
-  // SIMPAN PROGRESS KE SUPABASE (TABLE "player_progress")
   // ------------------------------------------------------------
-  const submitScore = async () => {
-    const score = calculateScore(grid, solution, hintsUsed);
-    const { data: { user } } = await supabase.auth.getUser();
+  // SIMPAN PROGRESS KE SUPABASE
+  // ------------------------------------------------------------
+  // pages/Game.tsx
+const submitScore = async () => {
+  const score = calculateScore(grid, solution, hintsUsed);
+  const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return alert("Login dulu!");
+  if (!user) return alert("Login dulu!");
 
-    // Cek apakah sudah ada progress sebelumnya
-    const { data: existingProgress, error: fetchError } = await supabase
-      .from("player_progress")
-      .select("completed, completed_at")
-      .eq("user_id", user.id)
-      .eq("level_id", numericLevelId)
-      .single();
+  const { data: existingProgress, error: fetchError } = await supabase
+    .from("player_progress")
+    .select("completed, completed_at")
+    .eq("user_id", user.id)
+    .eq("level_id", numericLevelId)
+    .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 artinya tidak ada data
-      console.error("Error fetching existing progress:", fetchError);
-      return;
-    }
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.error("Error fetching progress:", fetchError);
+    return;
+  }
 
-    const isCompleted = grid.flat().every((cell, index) => {
-      const r = Math.floor(index / grid[0].length);
-      const c = index % grid[0].length;
-      if (solution[r][c] === '#') return true; // Lewati block
-      return cell.toUpperCase() === solution[r][c];
-    });
+  const isCompleted = grid.flat().every((cell, index) => {
+    const r = Math.floor(index / grid[0].length);
+    const c = index % grid[0].length;
+    
+    // Skip null cells
+    if (solution[r][c] === null) return true;
+    if (solution[r][c] === '#') return true;
+    
+    return cell !== null && cell.toUpperCase() === solution[r][c];
+  });
 
-    // Gunakan completed_at yang lama jika sebelumnya sudah selesai, atau waktu sekarang jika baru selesai
-    const finalCompletedAt = existingProgress?.completed 
-      ? existingProgress.completed_at // Gunakan waktu selesai sebelumnya
-      : isCompleted 
-        ? new Date().toISOString() // Simpan waktu sekarang jika baru selesai
-        : null; // Gunakan null jika belum selesai
+  const finalCompletedAt = existingProgress?.completed
+    ? existingProgress.completed_at
+    : isCompleted
+      ? new Date().toISOString()
+      : null;
 
-    const { error: upsertError } = await supabase
-      .from("player_progress")
-      .upsert({
-        user_id: user.id,
-        level_id: numericLevelId,
-        score,
-        hints_used: hintsUsed,
-        completed: isCompleted,
-        completed_at: finalCompletedAt
-      }, { onConflict: 'user_id, level_id' }); 
-
-    if (upsertError) {
-      console.error("Error saving progress:", upsertError);
-      alert("Gagal menyimpan progress.");
-    } else {
-      alert("Progress berhasil disimpan!");
-    }
+  const upsertPayload = {
+    user_id: user.id,
+    level_id: numericLevelId,
+    score,
+    hints_used: hintsUsed,
+    completed: isCompleted,
+    completed_at: finalCompletedAt,
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (!level || grid.length === 0 || grid[0]?.length === 0) return <div>Level tidak ditemukan atau grid kosong</div>;
+  const { error } = await supabase
+    .from("player_progress")
+    .upsert(upsertPayload, { onConflict: 'user_id,level_id' });
 
-  // Pisahkan clue untuk panel
-  const acrossClues = clues.filter(c => c.direction === 'across').sort((a, b) => a.number - b.number);
-  const downClues = clues.filter(c => c.direction === 'down').sort((a, b) => a.number - b.number);
+  if (error) {
+    console.error("Error saving progress:", error);
+    alert("Gagal menyimpan progress.");
+  } else {
+    alert(`Progress berhasil disimpan! Skor: ${score}`);
+  }
+};
+
+  if (loading) {
+    return (
+      <div className="game-loading">
+        <div className="spinner"></div>
+        <p>Mengambil data teka-teki silang...</p>
+      </div>
+    );
+  }
+
+  if (!level || grid.length === 0 || grid[0]?.length === 0) {
+    return (
+      <div className="game-error">
+        <h2>Level Tidak Ditemukan</h2>
+        <p>Maaf, level dengan ID {levelId} tidak tersedia.</p>
+      </div>
+    );
+  }
+
+  // Format waktu: MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="game">
-      <h2>{level.title}</h2>
-      <p>{level.description}</p>
+      <header className="game-header">
+        <h1>{level.title}</h1>
+        <p className="game-description">{level.description || 'Teka-teki silang dasar'}</p>
+        <div className="game-meta">
+          <span>Waktu: {formatTime(timeElapsed)}</span>
+          <span>Ukuran: {level.width} × {level.height}</span>
+        </div>
+      </header>
 
-      <div className="game-controls">
-        <button onClick={useHint} disabled={hintsUsed >= maxHints}>
-          Hint ({hintsUsed}/{maxHints})
-        </button>
+      <div className="game-main">
+        <div className="game-grid-section">
+          {grid.length > 0 && grid[0]?.length > 0 && (
+            <CrosswordGrid
+              grid={grid}
+              onCellChange={handleCellChange}
+              correctness={correctness}
+              clueNumbers={gridClueNumbers}
+              onCellClick={handleCellClick}
+              activeCell={activeCell}
+            />
+          )}
+        </div>
 
-        <button onClick={submitScore}>
-          Simpan Progress
-        </button>
-      </div>
-
-      <div className="game-content">
-        {/* Hanya render CrosswordGrid jika grid sudah siap */}
-        {grid.length > 0 && grid[0]?.length > 0 && (
-          <CrosswordGrid
-            grid={grid}
-            onCellChange={handleCellChange}
-            correctness={correctness}
-            clueNumbers={gridClueNumbers}
+        <div className="game-clues-section">
+          <CluesPanel
+            across={activeClues.across ? [activeClues.across] : []}
+            down={activeClues.down ? [activeClues.down] : []}
           />
-        )}
-
-        <CluesPanel
-          across={acrossClues}
-          down={downClues}
-        />
+        </div>
       </div>
+
+      <footer className="game-footer">
+        <button
+          onClick={useHint}
+          disabled={hintsUsed >= maxHints}
+          className="btn btn-hint"
+        >
+          🎯 Hint ({hintsUsed}/{maxHints})
+        </button>
+
+        <button onClick={submitScore} className="btn btn-save">
+          ✅ Simpan Progress
+        </button>
+      </footer>
     </div>
   );
 };

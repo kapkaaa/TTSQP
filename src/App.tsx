@@ -94,7 +94,7 @@ const App: React.FC = () => {
         </main>
 
         <footer className="app-footer">
-          <p>© 2025 Teka-Teki Silang • Dibangun dengan React + Vite + Supabase</p>
+          {/* <p>© 2025 Teka-Teki Silang • Dibangun dengan React + Vite + Supabase</p> */}
         </footer>
       </div>
     </Router>

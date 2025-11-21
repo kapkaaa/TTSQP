@@ -9,6 +9,14 @@ export const useCrossword = (levelId: number) => {
   const [cells, setCells] = useState<Cell[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // State baru untuk batas grid
+  const [gridBounds, setGridBounds] = useState({
+    minRow: 0,
+    maxRow: 0,
+    minCol: 0,
+    maxCol: 0,
+  });
+
   useEffect(() => {
     const fetchLevelData = async () => {
       setLoading(true);
@@ -50,6 +58,18 @@ export const useCrossword = (levelId: number) => {
         return;
       }
 
+      // Hitung batas grid
+      if (cellsData.length > 0) {
+        const rows = cellsData.map(c => c.row);
+        const cols = cellsData.map(c => c.col);
+        setGridBounds({
+          minRow: Math.min(...rows),
+          maxRow: Math.max(...rows),
+          minCol: Math.min(...cols),
+          maxCol: Math.max(...cols),
+        });
+      }
+
       setLevel(levelData as Level);
       setClues(cluesData as Clue[]);
       setCells(cellsData as Cell[]);
@@ -59,6 +79,5 @@ export const useCrossword = (levelId: number) => {
     fetchLevelData();
   }, [levelId]);
 
-  return { level, clues, cells, loading };
+  return { level, clues, cells, gridBounds, loading };
 };
-
