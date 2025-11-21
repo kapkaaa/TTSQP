@@ -1,21 +1,32 @@
+// CluesPanel.tsx
 import React from 'react';
 import { Clue } from '../types/crossword';
 
 interface Props {
-  clues: Clue[];
+  across: Clue[];
+  down: Clue[];
 }
 
-const CluesPanel: React.FC<Props> = ({ clues }) => {
+const CluesPanel: React.FC<Props> = ({ across, down }) => {
   return (
-    <div className="clues-panel">
-      <h3>Clues</h3>
-      <ul>
-        {clues.map((clue) => (
-          <li key={clue.id}>
-            {clue.id}. {clue.text} ({clue.direction})
-          </li>
+    <div className="clues">
+      <div className="clues-column">
+        <h3>Across</h3>
+        {across.map(c => (
+          <div key={`across-${c.id}`} className="clue-item">
+            <strong>{c.number}.</strong> {c.clue_text}
+          </div>
         ))}
-      </ul>
+      </div>
+
+      <div className="clues-column">
+        <h3>Down</h3>
+        {down.map(c => (
+          <div key={`down-${c.id}`} className="clue-item">
+            <strong>{c.number}.</strong> {c.clue_text}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

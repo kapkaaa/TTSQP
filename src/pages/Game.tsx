@@ -1,3 +1,4 @@
+// Game.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from "react-router-dom";
 import { useCrossword } from '../hooks/useCrossword';
@@ -10,99 +11,207 @@ const Game: React.FC = () => {
   const { levelId } = useParams<{ levelId: string }>();
   const numericLevelId = Number(levelId);
 
-  const { level, loading } = useCrossword(numericLevelId);
+  const { level, clues, cells, loading } = useCrossword(numericLevelId);
+
   const [grid, setGrid] = useState<string[][]>([]);
   const [solution, setSolution] = useState<string[][]>([]);
+  const [gridClueNumbers, setGridClueNumbers] = useState<(number | null)[][]>([]); // Untuk nomor clue di grid
+
   const [hintsUsed, setHintsUsed] = useState(0);
-  const [maxHints] = useState(3);
+  const maxHints = 3;
+
   const [correctness, setCorrectness] = useState<(boolean | undefined)[][]>([]);
 
+  // ------------------------------------------------------------
+  //  BANGUN GRID DARI CELL DATABASE
+  // ------------------------------------------------------------
   useEffect(() => {
-    if (level) {
-      const grid: string[][] = JSON.parse(level.grid_json);
-      const sol = grid.map((row: string[]) =>
-        row.map((cell: string) => (cell === '#' ? '#' : ''))
-      );
-      setGrid(grid);
-      setSolution(sol);
-      initializeCorrectness(grid);
+    if (!level || !cells.length) return;
+
+    const rows = level.height;
+    const cols = level.width;
+    const newGrid: string[][] = Array(rows).fill(null).map(() => Array(cols).fill(''));
+    const newSolution: string[][] = Array(rows).fill(null).map(() => Array(cols).fill(''));
+    const newCorrectness: (boolean | undefined)[][] = Array(rows).fill(null).map(() => Array(cols).fill(undefined));
+    const newGridClueNumbers: (number | null)[][] = Array(rows).fill(null).map(() => Array(cols).fill(null));
+
+    // Buat peta cell berdasarkan posisi
+    const cellMap = new Map<string, any>();
+    cells.forEach(cell => {
+      const key = `${cell.row},${cell.col}`;
+      cellMap.set(key, cell);
+    });
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = cellMap.get(`${r},${c}`);
+        if (cell) {
+          if (cell.type === 'block') {
+            newGrid[r][c] = '#';
+            newSolution[r][c] = '#';
+          } else {
+            newGrid[r][c] = '';
+            newSolution[r][c] = cell.solution_letter || '';
+            // Simpan nomor clue jika ada
+            if (cell.clue_across_id || cell.clue_down_id) {
+                // Cari clue terkecil yang terkait dengan cell ini
+                const cellClues = clues.filter(clue => clue.id === cell.clue_across_id || clue.id === cell.clue_down_id);
+                if (cellClues.length > 0) {
+                    const minNumber = Math.min(...cellClues.map(clue => clue.number));
+                    newGridClueNumbers[r][c] = minNumber;
+                }
+            }
+          }
+        } else {
+          // Jika tidak ada data cell, asumsikan blank
+          newGrid[r][c] = '';
+          newSolution[r][c] = '';
+        }
+      }
     }
-  }, [level]);
 
-  const initializeCorrectness = (grid: string[][]) => {
-    const newCorrectness = grid.map(row =>
-      row.map(() => undefined as boolean | undefined)
-    );
+    setGrid(newGrid);
+    setSolution(newSolution);
     setCorrectness(newCorrectness);
-  };
+    setGridClueNumbers(newGridClueNumbers);
+  }, [level, cells]);
 
+  // ------------------------------------------------------------
+  // INPUT PER HURUF
+  // ------------------------------------------------------------
   const handleCellChange = (r: number, c: number, value: string) => {
-    const newGrid = [...grid];
+    if (solution[r][c] === '#') return; // Jangan proses jika block
+
+    const newGrid = grid.map(row => [...row]);
     newGrid[r][c] = value.toUpperCase();
     setGrid(newGrid);
 
-    const newCorrectness = [...correctness];
-    if (value.toUpperCase() === solution[r][c]) {
-      newCorrectness[r][c] = true;
-    } else if (value) {
-      newCorrectness[r][c] = false;
-    } else {
-      newCorrectness[r][c] = undefined;
-    }
-    setCorrectness(newCorrectness);
+    const newCorrect = correctness.map(row => [...row]);
+    const input = value.toUpperCase();
+    const correct = solution[r][c];
+
+    if (!input) newCorrect[r][c] = undefined;
+    else newCorrect[r][c] = input === correct;
+
+    setCorrectness(newCorrect);
   };
 
+  // ------------------------------------------------------------
+  // HINT
+  // ------------------------------------------------------------
   const useHint = () => {
     if (hintsUsed >= maxHints) return;
 
     for (let r = 0; r < grid.length; r++) {
       for (let c = 0; c < grid[0].length; c++) {
-        if (grid[r][c] !== '#' && !grid[r][c]) {
-          const newGrid = [...grid];
+        if (grid[r][c] === "" && solution[r][c] !== "#") {
+          const newGrid = grid.map(row => [...row]);
           newGrid[r][c] = solution[r][c];
           setGrid(newGrid);
 
-          const newCorrectness = [...correctness];
-          newCorrectness[r][c] = true;
-          setCorrectness(newCorrectness);
+          const newCorrect = correctness.map(row => [...row]);
+          newCorrect[r][c] = true;
+          setCorrectness(newCorrect);
 
-          setHintsUsed(prev => prev + 1);
+          setHintsUsed(hintsUsed + 1);
           return;
         }
       }
     }
   };
 
+    // ------------------------------------------------------------
+  // SIMPAN PROGRESS KE SUPABASE (TABLE "player_progress")
+  // ------------------------------------------------------------
   const submitScore = async () => {
     const score = calculateScore(grid, solution, hintsUsed);
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
-      await supabase.from('player_progress').upsert({
+    if (!user) return alert("Login dulu!");
+
+    // Cek apakah sudah ada progress sebelumnya
+    const { data: existingProgress, error: fetchError } = await supabase
+      .from("player_progress")
+      .select("completed, completed_at")
+      .eq("user_id", user.id)
+      .eq("level_id", numericLevelId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 artinya tidak ada data
+      console.error("Error fetching existing progress:", fetchError);
+      return;
+    }
+
+    const isCompleted = grid.flat().every((cell, index) => {
+      const r = Math.floor(index / grid[0].length);
+      const c = index % grid[0].length;
+      if (solution[r][c] === '#') return true; // Lewati block
+      return cell.toUpperCase() === solution[r][c];
+    });
+
+    // Gunakan completed_at yang lama jika sebelumnya sudah selesai, atau waktu sekarang jika baru selesai
+    const finalCompletedAt = existingProgress?.completed 
+      ? existingProgress.completed_at // Gunakan waktu selesai sebelumnya
+      : isCompleted 
+        ? new Date().toISOString() // Simpan waktu sekarang jika baru selesai
+        : null; // Gunakan null jika belum selesai
+
+    const { error: upsertError } = await supabase
+      .from("player_progress")
+      .upsert({
         user_id: user.id,
         level_id: numericLevelId,
-        hints_used: hintsUsed,
         score,
-        completed: true,
-      });
+        hints_used: hintsUsed,
+        completed: isCompleted,
+        completed_at: finalCompletedAt
+      }, { onConflict: 'user_id, level_id' }); 
+
+    if (upsertError) {
+      console.error("Error saving progress:", upsertError);
+      alert("Gagal menyimpan progress.");
+    } else {
+      alert("Progress berhasil disimpan!");
     }
   };
 
   if (loading) return <div>Loading...</div>;
+  if (!level || grid.length === 0 || grid[0]?.length === 0) return <div>Level tidak ditemukan atau grid kosong</div>;
+
+  // Pisahkan clue untuk panel
+  const acrossClues = clues.filter(c => c.direction === 'across').sort((a, b) => a.number - b.number);
+  const downClues = clues.filter(c => c.direction === 'down').sort((a, b) => a.number - b.number);
 
   return (
     <div className="game">
-      <button onClick={useHint} disabled={hintsUsed >= maxHints}>
-        Hint ({hintsUsed}/{maxHints})
-      </button>
-      <button onClick={submitScore}>Submit</button>
+      <h2>{level.title}</h2>
+      <p>{level.description}</p>
+
+      <div className="game-controls">
+        <button onClick={useHint} disabled={hintsUsed >= maxHints}>
+          Hint ({hintsUsed}/{maxHints})
+        </button>
+
+        <button onClick={submitScore}>
+          Simpan Progress
+        </button>
+      </div>
+
       <div className="game-content">
-        <CrosswordGrid
-          grid={grid}
-          onCellChange={handleCellChange}
-          correctness={correctness}
+        {/* Hanya render CrosswordGrid jika grid sudah siap */}
+        {grid.length > 0 && grid[0]?.length > 0 && (
+          <CrosswordGrid
+            grid={grid}
+            onCellChange={handleCellChange}
+            correctness={correctness}
+            clueNumbers={gridClueNumbers}
+          />
+        )}
+
+        <CluesPanel
+          across={acrossClues}
+          down={downClues}
         />
-        <CluesPanel clues={JSON.parse(level!.clues_json)} />
       </div>
     </div>
   );
